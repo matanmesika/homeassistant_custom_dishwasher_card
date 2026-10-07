@@ -18,7 +18,7 @@ const SUFFIXES = {
   intensiveZone: ["_intensive_zone"],
   power: ["_power"],
   silence: ["_silence", "_silence_on_demand"],
-  varioSpeed: ["_vario_speed_plus", "_vario_speed", "_speed_on_demand"],
+  varioSpeed: ["_vario_speed_plus", "_vario_speed"],
   extraDry: ["_extra_dry_option", "_extra_dry"],
   stop: ["_stop_program", "_abort"],
   salt: ["_salt"],
@@ -99,6 +99,13 @@ const TEXT = {
     maintenanceNeeded: "Wartung erforderlich",
     checkFilter: "Filter prüfen",
     descale: "Entkalken",
+    salt: "Salz",
+    rinseAid: "Klarspüler",
+    smartFilter: "Smart Filter",
+    machineCare: "Machine Care",
+    machineCareFilter: "Machine Care & Filter",
+    filterSystem: "Filtersystem",
+    waterHeater: "Wassererhitzer",
   },
   en: {
     loading: "Loading dishwasher …",
@@ -148,6 +155,13 @@ const TEXT = {
     maintenanceNeeded: "Maintenance needed",
     checkFilter: "Check filter",
     descale: "Descaling needed",
+    salt: "Salt",
+    rinseAid: "Rinse Aid",
+    smartFilter: "Smart Filter",
+    machineCare: "Machine Care",
+    machineCareFilter: "Machine Care & Filter",
+    filterSystem: "Filter System",
+    waterHeater: "Water Heater",
   },
 };
 
@@ -452,13 +466,13 @@ class DishwasherCard extends HTMLElement {
   _maintenance() {
     if (!this._config.show_maintenance) return "";
     const definitions = [
-      ["salt", "Salt", "mdi:shaker-outline"],
-      ["rinseAid", "Rinse Aid", "mdi:bottle-tonic-outline"],
-      ["smartFilter", "Smart Filter", "mdi:filter-outline"],
-      ["machineCare", "Machine Care", "mdi:dishwasher-alert"],
-      ["machineCareFilter", "Machine Care & Filter", "mdi:wrench-clock"],
-      ["checkFilter", "Filter System", "mdi:filter-alert-outline"],
-      ["heaterCalcified", "Water Heater", "mdi:kettle-alert-outline"],
+      ["salt", this._text.salt, "mdi:shaker-outline"],
+      ["rinseAid", this._text.rinseAid, "mdi:bottle-tonic-outline"],
+      ["smartFilter", this._text.smartFilter, "mdi:filter-outline"],
+      ["machineCare", this._text.machineCare, "mdi:dishwasher-alert"],
+      ["machineCareFilter", this._text.machineCareFilter, "mdi:wrench-clock"],
+      ["checkFilter", this._text.filterSystem, "mdi:filter-alert-outline"],
+      ["heaterCalcified", this._text.waterHeater, "mdi:kettle-alert-outline"],
     ];
     const rows = definitions
       .filter(([key]) => this._available(key))
