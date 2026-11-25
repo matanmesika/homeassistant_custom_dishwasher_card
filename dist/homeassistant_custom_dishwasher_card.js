@@ -91,6 +91,8 @@ const TEXT = {
     extraDry: "Extra Dry",
     maintenance: "Wartung",
     remaining: "Restzeit",
+    elapsed: "Läuft seit",
+    total: "Gesamt",
     machineCareRuns: "Spülgänge bis Machine Care",
     refillSoon: "Bald nachfüllen",
     refillNeeded: "Nachfüllen",
@@ -149,6 +151,8 @@ const TEXT = {
     extraDry: "Extra Dry",
     maintenance: "Maintenance",
     remaining: "Remaining",
+    elapsed: "Running for",
+    total: "Total",
     machineCareRuns: "Runs until Machine Care",
     refillSoon: "Refill soon",
     refillNeeded: "Refill needed",
@@ -262,6 +266,7 @@ class DishwasherCard extends HTMLElement {
       const state = this._hass.states[id];
       relevant[key] = state ? [state.state, state.attributes?.options] : null;
     }
+    if (this._entities.remainingTime && ["run", "pause"].includes(this._operation())) relevant.minute = Math.floor(Date.now() / 60000);
     return JSON.stringify(relevant);
   }
 
@@ -309,7 +314,27 @@ class DishwasherCard extends HTMLElement {
   }
 
   _remaining() {
-    const seconds = this._durationSeconds("remainingTime");
+    return this._formatDuration(this._durationSeconds("remainingTime"));
+  }
+
+  _timing() {
+    if (!["run", "pause"].includes(this._operation())) return null;
+    const remaining = this._durationSeconds("remainingTime");
+    if (remaining === null || remaining < 0) return null;
+    let elapsed = null;
+    const progress = this._progress();
+    if (progress !== null && progress > 0 && progress < 100) elapsed = (remaining * progress) / (100 - progress);
+    const operation = this._state("operation");
+    if (elapsed === null && operation?.state === "run" && operation.last_changed) {
+      const started = new Date(operation.last_changed).getTime();
+      if (Number.isFinite(started)) elapsed = Math.max(0, (Date.now() - started) / 1000);
+    }
+    if (elapsed === null) return null;
+    const total = elapsed + remaining;
+    return { elapsed, total, ratio: total > 0 ? Math.min(1, elapsed / total) : 0 };
+  }
+
+  _formatDuration(seconds) {
     if (seconds === null || seconds < 0) return "";
     const rounded = Math.round(seconds / 60);
     const hours = Math.floor(rounded / 60);
@@ -392,6 +417,7 @@ class DishwasherCard extends HTMLElement {
     const program = this._program();
     const finish = this._finish();
     const remaining = this._remaining();
+    const timing = this._timing();
     const door = this._door();
     const online = this._on("connectivity");
     const remote = this._on("remoteStart");
@@ -414,9 +440,12 @@ class DishwasherCard extends HTMLElement {
             <div class="program">${this._escape(this._programLabel(program))}</div>
             <div class="facts">
               ${finish ? `<div><ha-icon icon="mdi:clock-check-outline"></ha-icon><span><small>${t.finish}</small>${this._escape(finish)}</span></div>` : ""}
+              ${timing ? `<div><ha-icon icon="mdi:timer-play-outline"></ha-icon><span><small>${t.elapsed}</small>${this._escape(this._formatDuration(timing.elapsed))}</span></div>` : ""}
               ${remaining ? `<div><ha-icon icon="mdi:timer-sand"></ha-icon><span><small>${t.remaining}</small>${this._escape(remaining)}</span></div>` : ""}
+              ${timing ? `<div><ha-icon icon="mdi:timer-outline"></ha-icon><span><small>${t.total}</small>${this._escape(this._formatDuration(timing.total))}</span></div>` : ""}
               ${this._state("door") ? `<div><ha-icon icon="${door.icon}"></ha-icon><span><small>${t.program}</small>${this._escape(door.label)}</span></div>` : ""}
             </div>
+            ${timing ? `<div class="timebar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(timing.ratio * 100)}"><i style="width:${(timing.ratio * 100).toFixed(1)}%"></i></div>` : ""}
           </div>
         </div>
         <div class="pills">
@@ -532,6 +561,7 @@ class DishwasherCard extends HTMLElement {
       .hero{display:grid;grid-template-columns:170px 1fr;align-items:center;gap:20px;padding:4px 0 16px}.visual{width:160px;height:160px;position:relative;display:grid;place-items:center;margin:auto}.visual svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg)}circle{fill:none;stroke-width:8}.track{stroke:var(--divider-color)}.value{stroke:var(--accent);stroke-linecap:round;transition:stroke-dashoffset .4s}.machine{width:84px;height:84px;border-radius:26px;display:grid;place-items:center;background:var(--secondary-background-color);color:var(--accent);position:relative;box-shadow:inset 0 0 0 1px var(--divider-color)}.machine ha-icon{--mdc-icon-size:52px}.running .machine{animation:pulse 2s ease-in-out infinite}.machine i{position:absolute;border:2px solid var(--accent);border-radius:50%;opacity:0;animation:bubble 2.4s ease-in-out infinite}.b1{width:8px;height:8px;left:18px;bottom:15px}.b2{width:5px;height:5px;left:40px;bottom:10px;animation-delay:.7s!important}.b3{width:10px;height:10px;right:17px;bottom:17px;animation-delay:1.3s!important}.percent{position:absolute;bottom:-2px;background:var(--ha-card-background,var(--card-background-color));padding:2px 8px;border-radius:99px;display:flex;gap:4px;align-items:baseline}.percent small{color:var(--secondary-text-color)}.operation{font-size:1.7rem;font-weight:750}.operation.run{color:var(--success-color,#43a047)}.operation.pause,.operation.delayedstart{color:var(--warning-color,#f9a825)}.operation.error{color:var(--error-color,#db4437)}.facts{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:18px}.facts>div{display:flex;gap:8px;align-items:center}.facts ha-icon,section>label ha-icon{color:var(--accent)}.facts span{display:flex;flex-direction:column}.facts small{color:var(--secondary-text-color)}
       .pills{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px}.pill ha-icon{--mdc-icon-size:17px}section{border-top:1px solid var(--divider-color);padding-top:14px;margin-top:14px}section>label{display:flex;align-items:center;gap:7px;color:var(--secondary-text-color);font-size:.8rem;font-weight:650;margin-bottom:9px}.select{position:relative}.select select{width:100%;appearance:none;border:1px solid var(--divider-color);border-radius:12px;padding:12px 42px 12px 13px;background:var(--secondary-background-color);color:var(--primary-text-color)}.select>ha-icon{position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none}.segments{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.segments button,.option{border:1px solid var(--divider-color);border-radius:11px;background:var(--secondary-background-color);color:inherit;cursor:pointer}.segments button{padding:9px}.options,.maintenance{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.option,.maintenance-item{border:1px solid var(--divider-color);border-radius:11px;background:var(--secondary-background-color);color:inherit;cursor:pointer;padding:11px;display:flex;align-items:center;gap:10px;text-align:left}.maintenance-item span{display:flex;flex-direction:column}.maintenance-item small{color:var(--secondary-text-color);margin-top:2px}.option{padding:11px;display:flex;align-items:center;gap:10px;text-align:left}.option span{display:flex;flex-direction:column}.option small{color:var(--secondary-text-color);margin-top:2px}.option.active{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--secondary-background-color))}.option.active ha-icon{color:var(--accent)}footer{display:flex;gap:9px;margin-top:18px}.action{flex:1;border:0;border-radius:12px;min-height:44px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:700;cursor:pointer}.primary{background:var(--accent);color:var(--text-primary-color,#fff)}.danger{background:color-mix(in srgb,var(--error-color,#db4437) 14%,var(--secondary-background-color));color:var(--error-color,#db4437)}.message{min-height:120px;padding:24px;display:flex;align-items:center;justify-content:center;gap:10px;color:var(--secondary-text-color)}.error{color:var(--error-color,#db4437)}.spinner{width:24px;height:24px;border:3px solid var(--divider-color);border-top-color:var(--primary-color);border-radius:50%;animation:spin .8s linear infinite}
       section>label{text-transform:uppercase;letter-spacing:.06em;font-size:.75rem}.segments{display:flex;gap:2px;padding:3px;border:1px solid var(--divider-color);border-radius:999px;background:var(--secondary-background-color)}.segments button{flex:1 1 0;border:0;border-radius:999px;background:transparent;padding:7px 6px;transition:background .15s,box-shadow .18s}.segments button:hover:not(:disabled){background:color-mix(in srgb,var(--accent) 14%,transparent);box-shadow:0 4px 14px rgba(0,0,0,.35)}.select select{cursor:pointer;transition:box-shadow .18s,border-color .18s}.select select:hover:not(:disabled){border-color:color-mix(in srgb,var(--accent) 50%,transparent);box-shadow:0 6px 18px rgba(0,0,0,.3)}.pill,.status{transition:box-shadow .18s,border-color .18s}.pill:hover,.status:hover{box-shadow:0 6px 18px rgba(0,0,0,.3)}.option{border-radius:14px;transition:box-shadow .18s,border-color .18s,transform .1s}.option:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,0,0,.3);border-color:color-mix(in srgb,var(--accent) 45%,transparent)}.action{border-radius:999px;transition:box-shadow .18s,transform .1s}.action.primary{box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 40%,transparent)}.action:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(0,0,0,.35)}
+      .timebar{height:6px;border-radius:999px;background:var(--divider-color);overflow:hidden;margin-top:12px}.timebar i{display:block;height:100%;border-radius:inherit;background:var(--accent);transition:width .6s}
       .mnt-sum{margin-left:auto;display:inline-flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-weight:500}.mnt-sum::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}.mnt-sum.good{color:var(--success-color,#43a047)}.mnt-sum.warning{color:var(--warning-color,#f9a825)}.mnt-sum.bad{color:var(--error-color,#db4437)}.mnt-grid{display:grid;grid-template-columns:repeat(var(--mnt-count,4),minmax(0,1fr));gap:4px}.mnt-tile{--tone:var(--success-color,#43a047);border:1px solid transparent;border-radius:10px;background:var(--secondary-background-color);padding:6px 2px 5px;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;color:inherit;font:inherit;min-width:0;transition:box-shadow .18s,transform .1s,border-color .18s}.mnt-tile.warning{--tone:var(--warning-color,#f9a825)}.mnt-tile.bad{--tone:var(--error-color,#db4437)}.mnt-tile:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,0,0,.3);border-color:color-mix(in srgb,var(--tone) 50%,transparent)}.mnt-icon{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--tone) 18%,transparent);color:var(--tone)}.mnt-icon ha-icon{--mdc-icon-size:15px;display:flex}.mnt-name{font-size:.6rem;text-align:center;line-height:1.15;max-width:100%;min-height:2.3em;display:flex;align-items:center;justify-content:center;overflow:hidden;overflow-wrap:anywhere}.mnt-state{font-size:.58rem;font-weight:600;color:var(--tone);text-align:center;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
       @keyframes spin{to{transform:rotate(360deg)}}@keyframes pulse{50%{transform:scale(1.04)}}@keyframes bubble{0%{transform:translateY(0) scale(.6);opacity:0}25%{opacity:.8}100%{transform:translateY(-48px) scale(1.15);opacity:0}}
       @container(max-width:430px){.card{padding:16px}.hero{grid-template-columns:1fr;gap:8px}.visual{width:145px;height:145px}.summary{text-align:center}.operation{font-size:1.45rem}.facts{justify-content:center}.pills{justify-content:center}}@container(max-width:320px){.options,.facts{grid-template-columns:1fr}footer{flex-direction:column}}@media(prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
