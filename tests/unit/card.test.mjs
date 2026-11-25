@@ -304,3 +304,26 @@ test("includes Extra Dry in program option controls", () => {
   assert.match(card._optionControls(), /Extra Dry/);
   assert.match(card._optionControls(), /active/);
 });
+
+test("lays maintenance out as one row of state-coloured tiles", () => {
+  const entities = {
+    salt: "sensor.dishwasher_salt",
+    rinseAid: "sensor.dishwasher_rinse_aid",
+    smartFilter: "binary_sensor.dishwasher_smart_filter_cleaning",
+  };
+  const states = {
+    "sensor.dishwasher_salt": entityState("empty"),
+    "sensor.dishwasher_rinse_aid": entityState("full"),
+    "binary_sensor.dishwasher_smart_filter_cleaning": entityState("off"),
+  };
+  const card = createCard({ language: "en-US", entities, states, config: { show_maintenance: true } });
+  const html = card._maintenance();
+  assert.match(html, /--mnt-count:3/);
+  assert.match(html, /mnt-tile bad" data-info="salt"/);
+  assert.match(html, /mnt-tile good" data-info="rinseAid"/);
+  assert.match(html, /1 need attention/);
+
+  states["sensor.dishwasher_salt"] = entityState("full");
+  const ok = createCard({ language: "en-US", entities, states, config: { show_maintenance: true } });
+  assert.match(ok._maintenance(), /All OK/);
+});
