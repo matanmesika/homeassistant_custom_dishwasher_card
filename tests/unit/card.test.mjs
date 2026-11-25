@@ -327,3 +327,24 @@ test("lays maintenance out as one row of state-coloured tiles", () => {
   const ok = createCard({ language: "en-US", entities, states, config: { show_maintenance: true } });
   assert.match(ok._maintenance(), /All OK/);
 });
+
+test("shows running time, total and a time bar while a programme runs", () => {
+  const entities = {
+    operation: "sensor.dishwasher_operation_state",
+    progress: "sensor.dishwasher_program_progress",
+    remainingTime: "sensor.dishwasher_remaining_program_time",
+  };
+  const states = {
+    "sensor.dishwasher_operation_state": entityState("run"),
+    "sensor.dishwasher_program_progress": entityState("25"),
+    "sensor.dishwasher_remaining_program_time": entityState("3", { unit_of_measurement: "h" }),
+  };
+  const card = createCard({ language: "en-US", entities, states });
+  const timing = card._timing();
+  assert.equal(card._formatDuration(timing.elapsed), "1 h 00 min");
+  assert.equal(card._formatDuration(timing.total), "4 h 00 min");
+  assert.equal(timing.ratio, 0.25);
+
+  states["sensor.dishwasher_operation_state"] = entityState("ready");
+  assert.equal(createCard({ language: "en-US", entities, states })._timing(), null);
+});
