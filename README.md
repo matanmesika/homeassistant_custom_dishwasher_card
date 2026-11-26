@@ -47,7 +47,7 @@ device_id: 0123456789abcdef0123456789abcdef
 title: Geschirrspüler
 ```
 
-The card discovers the Home Connect entities attached to the device. Entity IDs can also be supplied explicitly:
+The card discovers the Home Connect entities attached to the device. You can also set everything in the visual card editor: the device, title, accent colour, which sections to show, and any single entity. Entities you set by hand override the ones found on the device. Without a `device_id`, the card uses only the entities you list:
 
 ```yaml
 type: custom:dishwasher-card

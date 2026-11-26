@@ -184,6 +184,10 @@ class DishwasherCard extends HTMLElement {
     this._signature = "";
   }
 
+  static getConfigElement() {
+    return document.createElement("dishwasher-card-editor");
+  }
+
   static getStubConfig() {
     return { type: "custom:dishwasher-card", device_id: "", title: "Geschirrspüler" };
   }
@@ -200,7 +204,9 @@ class DishwasherCard extends HTMLElement {
       show_maintenance: false,
       ...config,
     };
-    this._entities = config.entities ? { ...config.entities } : null;
+    // Entities set by hand override the ones found on the device; without a device they are used as they are.
+    this._overrides = config.entities ? { ...config.entities } : {};
+    this._entities = config.device_id ? null : { ...this._overrides };
     this._discovering = false;
     this._signature = "";
     this._render();
@@ -249,9 +255,10 @@ class DishwasherCard extends HTMLElement {
         const id = ids.find((candidate) => suffixes.some((suffix) => candidate.endsWith(suffix)));
         if (id) this._entities[key] = id;
       }
+      Object.assign(this._entities, this._overrides);
     } catch (error) {
       console.error("dishwasher-card discovery failed", error);
-      this._entities = {};
+      this._entities = { ...this._overrides };
     } finally {
       this._discovering = false;
       this._signature = "";
@@ -570,6 +577,74 @@ class DishwasherCard extends HTMLElement {
 }
 
 if (!customElements.get("dishwasher-card")) customElements.define("dishwasher-card", DishwasherCard);
+
+const EDITOR_TEXT = {
+  de: { device_id: "Gerät", title: "Titel", accent_color: "Akzentfarbe (CSS, z. B. #1976d2)", show_program: "Programm anzeigen", show_delay: "Startverzögerung anzeigen", show_options: "Optionen anzeigen", show_maintenance: "Wartung anzeigen", entities: "Entitäten (leer = automatisch vom Gerät)" },
+  en: { device_id: "Device", title: "Title", accent_color: "Accent colour (CSS, e.g. #1976d2)", show_program: "Show programme", show_delay: "Show start delay", show_options: "Show options", show_maintenance: "Show maintenance", entities: "Entities (empty = found on the device)" },
+};
+const ENTITY_DOMAINS = {
+  connectivity: "binary_sensor", remoteStart: ["binary_sensor", "switch"], door: ["binary_sensor", "sensor"], operation: "sensor",
+  finish: "sensor", remainingTime: "sensor", progress: "sensor", activeProgram: "sensor", selectedProgram: "select",
+  delay: "number", halfLoad: "switch", hygiene: "switch", intensiveZone: "switch", power: "switch", silence: "switch",
+  varioSpeed: "switch", extraDry: "switch", stop: "button", salt: ["sensor", "binary_sensor"], rinseAid: ["sensor", "binary_sensor"],
+  machineCareRemainingRuns: "sensor", machineCare: ["sensor", "binary_sensor"], smartFilter: ["sensor", "binary_sensor"],
+  machineCareFilter: ["sensor", "binary_sensor"], checkFilter: ["sensor", "binary_sensor"], heaterCalcified: ["sensor", "binary_sensor"],
+};
+const editorLabel = (key) => key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
+
+/** Visual editor: device, title, colour, sections, and an optional override for every entity. */
+class DishwasherCardEditor extends HTMLElement {
+  setConfig(config) {
+    this._config = { ...config };
+    this._render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    this._render();
+  }
+
+  get _text() {
+    const language = String(this._hass?.locale?.language || this._hass?.language || "de").toLowerCase();
+    return EDITOR_TEXT[language.startsWith("de") ? "de" : "en"];
+  }
+
+  _schema() {
+    return [
+      { name: "device_id", selector: { device: { filter: [{ integration: "home_connect" }, { integration: "homeconnect_ws" }] } } },
+      { name: "title", selector: { text: {} } },
+      { name: "accent_color", selector: { text: {} } },
+      { type: "grid", name: "", schema: ["show_program", "show_delay", "show_options", "show_maintenance"].map((name) => ({ name, selector: { boolean: {} } })) },
+      { type: "expandable", name: "entities", title: this._text.entities, schema: Object.keys(SUFFIXES).map((name) => ({ name, selector: { entity: { domain: ENTITY_DOMAINS[name] } } })) },
+    ];
+  }
+
+  _changed(value) {
+    const config = { ...this._config, ...value };
+    for (const key of ["device_id", "title", "accent_color"]) if (config[key] === "" || config[key] == null) delete config[key];
+    const entities = Object.fromEntries(Object.entries(value.entities || {}).filter(([, id]) => id));
+    if (Object.keys(entities).length) config.entities = entities;
+    else delete config.entities;
+    this._config = config;
+    this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
+  }
+
+  _render() {
+    if (!this._hass || !this._config) return;
+    if (!this._form) {
+      this._form = document.createElement("ha-form");
+      this._form.computeLabel = (schema) => this._text[schema.name] || editorLabel(schema.name);
+      this._form.addEventListener("value-changed", (event) => this._changed(event.detail.value));
+      this.appendChild(this._form);
+    }
+    this._form.hass = this._hass;
+    this._form.schema = this._schema();
+    this._form.data = { show_program: true, show_delay: true, show_options: true, show_maintenance: false, ...this._config, entities: this._config.entities || {} };
+  }
+}
+
+if (!customElements.get("dishwasher-card-editor")) customElements.define("dishwasher-card-editor", DishwasherCardEditor);
+
 globalThis.customCards = globalThis.customCards || [];
 const matchesEntity = (entity, terms) => {
   const entityId = String(entity?.entity_id || entity || "").toLowerCase();
